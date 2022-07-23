@@ -1,3 +1,7 @@
+// Helper class is getting all properties from your given model, iteriate throgh them on runtime.
+// We are using this method to set all parameters of DynamicParameters() without declaring every prop.
+// It`s not the best optimized case for performance because the action happens runtime but it will save us a lot of time.
+
 public static class DapperPropertiesHelper
     {
         public static object GetPropValue(object src, string propName)
