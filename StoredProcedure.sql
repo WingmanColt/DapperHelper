@@ -1,10 +1,18 @@
+USE [db_a75515_test]
+GO
+/****** Object:  StoredProcedure [dbo].[spJobCRUD]    Script Date: 7/31/2022 10:41:34 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
 ALTER PROCEDURE [dbo].[spJobCRUD](
-@id int,
-@Name nvarchar(50), 
-@LocationId nvarchar(20),
+@id int = NULL,
+@Name nvarchar(50) = NULL, 
+@LocationId nvarchar(20) = NULL,
 @ExprienceLevels INTEGER = 0,
 @JobType int = 0,
-@Description nvarchar(3000),
+@Description nvarchar(3000) = NULL,
 @MinSalary int = NULL,
 @MaxSalary int = NULL,
 @SalaryType int = 0,
@@ -12,22 +20,25 @@ ALTER PROCEDURE [dbo].[spJobCRUD](
 @PremiumPackage int = 0, 
 @CategoryId int = 0,
 @CompanyId int = 0,
-@Adress nvarchar(30),
+@Adress nvarchar(30) = NULL,
 @CompanyLogo varchar(100) = NULL,
 @LanguageId nvarchar(200) = NULL,
 @TagsId nvarchar(200) = NULL,
-@isArchived bit,
+@isArchived bit = 0,
 @isApproved int = 0,
-@WorkType nvarchar(200),
-@Rating decimal(10,2),
+@WorkType nvarchar(200) = NULL,
+@Rating decimal(10,2) = 0.0,
 @RatingVotes int = 0,
 @VotedUsers int = 0,
 @Views int = 0,
 @ApplyCount int = 0,
-@PosterId varchar(60),
-@CreatedOn datetime,
-@ExpiredOn datetime,
-@StatementType NVARCHAR(20) = '')
+@PosterId varchar(60) = NULL,
+@CreatedOn datetime = NULL,
+@ExpiredOn datetime = NULL,
+@isInFavourites bit = 0,
+@StatementType NVARCHAR(20) = '',
+@CurrentUser varchar(60) = NULL,
+@newId int = null output)
 AS
 BEGIN
 SET NOCOUNT ON;
@@ -92,22 +103,98 @@ SET NOCOUNT ON;
 			 @ApplyCount)	 
                END 
 
-
-
    IF @StatementType = 'Select'
         BEGIN
-            SELECT * FROM [db_a75515_test].[dbo].[Jobs]
+            SELECT * FROM [db_a75515_test].[dbo].[Jobs]  
+			WHERE id = @id
         END
+
+	IF @StatementType = 'UpdatePromotion'
+        BEGIN
+            UPDATE [db_a75515_test].[dbo].[Jobs]
+                     SET PremiumPackage = @PremiumPackage
+			WHERE  id = @id
+        END
+
+	IF @StatementType = 'RefreshDate'
+        BEGIN
+            UPDATE [db_a75515_test].[dbo].[Jobs]
+                     SET CreatedOn = GETDATE()
+			WHERE id = @id
+        END
+
+	IF @StatementType = 'UpdateUser'
+        BEGIN
+            UPDATE [db_a75515_test].[dbo].[Jobs]
+                     SET PosterID = @PosterId
+			WHERE id = @id
+        END
+
+	IF @StatementType = 'GetAllCountBy'
+        BEGIN
+            SELECT COUNT(*) FROM [db_a75515_test].[dbo].[Jobs]
+			WHERE isApproved = 2 AND isArchived = 0 
+			AND CategoryId = COALESCE(NULLIF(@CategoryId, ''), CategoryId)
+			AND CompanyId = COALESCE(NULLIF(@CompanyId, ''), CompanyId)
+			AND PosterId = COALESCE(NULLIF(@PosterId, ''), PosterId)
+        END
+
+	IF @StatementType = 'AddRatingToJobs'
+        BEGIN
+
+		  MERGE [db_a75515_test].[dbo].[Jobs] AS Target
+		  USING [db_a75515_test].[dbo].[Jobs] AS Source
+		  ON Source.Id = Target.Id
+ 
+    -- For Updates
+    WHEN MATCHED THEN UPDATE SET
+        Target.RatingVotes	+= @RatingVotes,
+        Target.Rating += ((Source.Rating * @RatingVotes) + @Rating) / (Source.RatingVotes + 1),
+		Target.VotedUsers += 1;
+		END
+
+   IF @StatementType = 'GetAllFiltering'
+        BEGIN
+			 SELECT * FROM [db_a75515_test].[dbo].[Jobs] AS ent
+			 WHERE ent.isApproved = 2 AND ent.isArchived = 0 
+			 AND ent.Name LIKE '%'+COALESCE(NULLIF(@Name, ''), ent.Name)+'%' 
+			 AND ent.LocationId  = COALESCE(NULLIF(@LocationId, ''), ent.LocationId)
+			 AND ent.CategoryId = COALESCE(NULLIF(@CategoryId, ''), ent.CategoryId)
+			 AND ent.CompanyId = COALESCE(NULLIF(@CompanyId, ''), ent.CompanyId)
+			 AND ent.WorkType = COALESCE(NULLIF(@WorkType, ''), ent.WorkType)
+			 AND ent.ExprienceLevels = COALESCE(NULLIF(@ExprienceLevels, ''), ent.ExprienceLevels)
+        END
+
+		   IF @StatementType = 'GetAllBy'
+        BEGIN
+
+		SELECT * FROM [db_a75515_test].[dbo].[Jobs] AS ent
+			 WHERE ent.isApproved = 2 AND ent.isArchived = 0 
+			 AND ent.CategoryId = COALESCE(NULLIF(@CategoryId, ''), ent.CategoryId)
+			 AND ent.CompanyId = COALESCE(NULLIF(@CompanyId, ''), ent.CompanyId)
+			 AND ent.PosterID = COALESCE(NULLIF(@PosterID, ''), ent.PosterID)
+		END
+
+	 IF @StatementType = 'GetAllForDashboard'
+        BEGIN
+
+		SELECT * FROM [db_a75515_test].[dbo].[Jobs] AS ent
+			 WHERE ent.CompanyId = COALESCE(NULLIF(@CompanyId, ''), ent.CompanyId)
+			 OR ent.PosterID = COALESCE(NULLIF(@PosterID, ''), ent.PosterID)
+			 ORDER BY ent.PremiumPackage DESC;
+		END
+
+
 
 IF @StatementType = 'Update'
         BEGIN
             UPDATE [db_a75515_test].[dbo].[Jobs]
-                     SET Name = @Name,
+             SET Name = @Name,
              LocationId = @LocationId,
              ExprienceLevels = @ExprienceLevels,
              JobType = @ExprienceLevels,
              Description = @Description,
-				MaxSalary = @MaxSalary,
+			 MaxSalary = @MaxSalary,
 			 MinSalary = @MinSalary,
 			 SalaryType = @SalaryType,
 			 Promotion = @Promotion,
@@ -122,12 +209,16 @@ IF @StatementType = 'Update'
 			 isApproved = @isApproved,
 			 WorkType = @WorkType
 			 WHERE Id = @id
+
+			 select @newId = Scope_Identity() 
+			  return @newId 
         END
       ELSE IF @StatementType = 'Delete'
         BEGIN
             DELETE FROM [db_a75515_test].[dbo].[Jobs]
-            WHERE  id = @id
+            WHERE id = @id
         END
+
 END
 
 
